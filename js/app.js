@@ -1,92 +1,79 @@
 /**
  * app.js
  * SoundShift — main application controller.
- *
- * Responsibilities:
- *  - File queue state management
- *  - Drag & drop / file input handling
- *  - UI rendering (file cards, stats, toasts)
- *  - Orchestrating conversions via SoundShiftEncoder
  */
 
 'use strict';
 
-// ── State ──────────────────────────────────────────────────────────────────
+// ── State ────────────────────────────────────────────────────────────────────
 const state = {
-  files:      [],   // Array of FileItem objects
+  files:      [],
   converting: false,
 };
 
 let _nextId = 0;
 
-/**
- * @typedef {Object} FileItem
- * @property {number}  id
- * @property {File}    file
- * @property {'pending'|'active'|'done'|'error'} status
- * @property {string}  statusText
- * @property {number}  progress    - 0–100
- * @property {Blob|null}   blob
- * @property {string|null} url     - object URL for download
- * @property {string|null} outName - filename for download
- */
+// ── DOM references ───────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
 
-// ── DOM references ──────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const dropzone      = $('dropzone');
-const fileInput     = $('fileInput');
-const queue         = $('queue');
-const convertBtn    = $('convertBtn');
-const downloadAllBtn= $('downloadAllBtn');
-const fmtSelect     = $('fmtSelect');
-const qSelect       = $('qSelect');
-const statFiles     = $('statFiles');
-const statConverted = $('statConverted');
-const statSize      = $('statSize');
-const statsBar      = $('statsBar');
-const vizSection    = $('vizSection');
-const waveCanvas    = $('waveCanvas');
-const toast         = $('toast');
-const toastIcon     = $('toastIcon');
-const toastMsg      = $('toastMsg');
+const dropzone       = $('dropzone');
+const fileInput      = $('fileInput');
+const queue          = $('queue');
+const convertBtn     = $('convertBtn');
+const downloadAllBtn = $('downloadAllBtn');
+const fmtSelect      = $('fmtSelect');
+const qSelect        = $('qSelect');
+const statFiles      = $('statFiles');
+const statConverted  = $('statConverted');
+const statSize       = $('statSize');
+const statsBar       = $('statsBar');
+const toast          = $('toast');
+const toastIcon      = $('toastIcon');
+const toastMsg       = $('toastMsg');
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Return the uppercased extension of a filename (max 5 chars). */
 function getExt(name) {
   return (name.split('.').pop() || '???').toUpperCase().slice(0, 5);
 }
 
-/** Human-readable file size. */
 function fmtSize(bytes) {
-  if (bytes < 1024)              return bytes + ' B';
-  if (bytes < 1024 * 1024)      return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024)        return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
-/** Sum of all file sizes in the queue. */
 function totalQueueSize() {
-  return state.files.reduce((acc, item) => acc + item.file.size, 0);
+  return state.files.reduce((acc, f) => acc + f.file.size, 0);
 }
 
-// ── Toast ───────────────────────────────────────────────────────────────────
+/**
+ * Sanitize a string for safe insertion into HTML attributes and text.
+ * Prevents XSS from malicious filenames.
+ */
+function sanitize(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
 let _toastTimer = null;
 
-/**
- * @param {string} msg
- * @param {'success'|'error'} type
- */
 function showToast(msg, type = 'success') {
   toastIcon.textContent = type === 'success' ? '✓' : '✗';
   toastMsg.textContent  = msg;
   toast.className       = `show ${type}`;
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { toast.className = ''; }, 3500);
+  _toastTimer = setTimeout(() => { toast.className = ''; }, 3800);
 }
 
-// ── Stats & controls ────────────────────────────────────────────────────────
+// ── Stats ────────────────────────────────────────────────────────────────────
 function updateStats() {
-  const total    = state.files.length;
+  const total     = state.files.length;
   const doneCount = state.files.filter(f => f.status === 'done').length;
 
   statFiles.textContent     = total;
@@ -98,34 +85,35 @@ function updateStats() {
   convertBtn.disabled = total === 0 || state.converting;
 }
 
-// ── Rendering ───────────────────────────────────────────────────────────────
-
-/** Build the SVG icon markup for download / remove buttons. */
+// ── Icons ────────────────────────────────────────────────────────────────────
 const ICONS = {
   download: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   remove:   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
 };
 
-/** Render the entire file queue from state. */
+// ── Render queue ─────────────────────────────────────────────────────────────
 function renderQueue() {
   queue.innerHTML = '';
 
   for (const item of state.files) {
     const card = document.createElement('div');
-    card.className  = `file-card ${item.status}`;
-    card.id         = `card-${item.id}`;
+    card.className = `file-card ${item.status}`;
+    card.id        = `card-${item.id}`;
     card.setAttribute('role', 'listitem');
 
-    const dotClass = item.status === 'active' ? 'spinning' : item.status;
-    const dlBtn    = item.status === 'done'
-      ? `<button class="btn-icon download" onclick="App.downloadItem(${item.id})" title="Baixar" aria-label="Baixar ${item.outName}">${ICONS.download}</button>`
+    const dotClass  = item.status === 'active' ? 'spinning' : item.status;
+    const safeName  = sanitize(item.file.name);
+    const safeOut   = sanitize(item.outName || '');
+    const safeMeta  = sanitize(item.statusText);
+    const dlBtn     = item.status === 'done'
+      ? `<button class="btn-icon download" onclick="App.downloadItem(${item.id})" title="Baixar" aria-label="Baixar ${safeOut}">${ICONS.download}</button>`
       : '';
 
     card.innerHTML = `
       <div class="file-ext" aria-hidden="true">${getExt(item.file.name)}</div>
       <div class="file-info">
-        <div class="file-name" title="${item.file.name}">${item.file.name}</div>
-        <div class="file-meta">${fmtSize(item.file.size)} · ${item.statusText}</div>
+        <div class="file-name" title="${safeName}">${safeName}</div>
+        <div class="file-meta">${fmtSize(item.file.size)} · ${safeMeta}</div>
         <div class="file-progress-bar" role="progressbar" aria-valuenow="${item.progress}" aria-valuemin="0" aria-valuemax="100">
           <div class="file-progress-fill" id="prog-${item.id}" style="width:${item.progress}%"></div>
         </div>
@@ -133,7 +121,7 @@ function renderQueue() {
       <div class="file-actions">
         <div class="status-dot ${dotClass}" aria-hidden="true"></div>
         ${dlBtn}
-        <button class="btn-icon remove" onclick="App.removeItem(${item.id})" title="Remover" aria-label="Remover ${item.file.name}">${ICONS.remove}</button>
+        <button class="btn-icon remove" onclick="App.removeItem(${item.id})" title="Remover" aria-label="Remover ${safeName}">${ICONS.remove}</button>
       </div>
     `;
 
@@ -141,57 +129,68 @@ function renderQueue() {
   }
 }
 
-// ── File management ─────────────────────────────────────────────────────────
-
+// ── File management ──────────────────────────────────────────────────────────
 const ACCEPTED_EXTENSIONS = /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm|wma|aiff|au)$/i;
+const MAX_FILE_MB          = 300;
+const MAX_FILE_BYTES       = MAX_FILE_MB * 1024 * 1024;
 
-/**
- * Add files to the queue (deduplicates by name+size).
- * @param {FileList|File[]} files
- */
 function addFiles(files) {
-  let added = 0;
+  let added      = 0;
+  let duplicates = [];
+  let invalid    = 0;
+  let tooBig     = [];
 
   for (const file of files) {
-    // Accept audio/* MIME or known audio extensions
-    if (!file.type.startsWith('audio/') && !ACCEPTED_EXTENSIONS.test(file.name)) continue;
+    // Validate format
+    if (!file.type.startsWith('audio/') && !ACCEPTED_EXTENSIONS.test(file.name)) {
+      invalid++;
+      continue;
+    }
 
-    // Deduplicate
+    // Validate size
+    if (file.size > MAX_FILE_BYTES) {
+      tooBig.push(`"${file.name}" (${(file.size / 1024 / 1024).toFixed(0)} MB)`);
+      continue;
+    }
+
+    // Detect duplicates by name + size
     const exists = state.files.some(f => f.file.name === file.name && f.file.size === file.size);
-    if (exists) continue;
+    if (exists) {
+      duplicates.push(file.name);
+      continue;
+    }
 
-    /** @type {FileItem} */
-    const item = {
+    state.files.push({
       id:         _nextId++,
       file,
       status:     'pending',
       statusText: 'Aguardando',
       progress:   0,
-      blob:       null,
       url:        null,
       outName:    null,
-    };
-
-    state.files.push(item);
+    });
     added++;
   }
 
-  if (added === 0) {
-    showToast('Nenhum arquivo de áudio válido encontrado.', 'error');
-    return;
+  // Specific feedback for each rejection reason
+  if (tooBig.length > 0) {
+    showToast(`Arquivo muito grande (máx. ${MAX_FILE_MB} MB): ${tooBig[0]}`, 'error');
+  } else if (duplicates.length > 0) {
+    const label = duplicates.length === 1
+      ? `"${duplicates[0]}" já está na fila.`
+      : `${duplicates.length} arquivos já estão na fila: ${duplicates.slice(0, 2).map(n => `"${n}"`).join(', ')}${duplicates.length > 2 ? '…' : ''}.`;
+    showToast(label, 'error');
+  } else if (invalid > 0 && added === 0) {
+    showToast('Formato não suportado. Envie arquivos de áudio.', 'error');
   }
 
-  renderQueue();
-  updateStats();
-
-  // Draw waveform for the latest file
-  const latest = state.files[state.files.length - 1];
-  SoundShiftEncoder.drawWaveform(latest.file, waveCanvas)
-    .then(() => vizSection.classList.add('visible'))
-    .catch(() => {/* silently ignore waveform errors */});
+  if (added > 0) {
+    renderQueue();
+    updateStats();
+  }
 }
 
-// ── Public actions (bound to onclick in HTML) ───────────────────────────────
+// ── Public actions ───────────────────────────────────────────────────────────
 window.App = {
   removeItem(id) {
     const idx = state.files.findIndex(f => f.id === id);
@@ -201,10 +200,6 @@ window.App = {
     state.files.splice(idx, 1);
     renderQueue();
     updateStats();
-
-    if (state.files.length === 0) {
-      vizSection.classList.remove('visible');
-    }
   },
 
   downloadItem(id) {
@@ -214,7 +209,6 @@ window.App = {
   },
 };
 
-/** Create a temporary <a> and trigger download. */
 function triggerDownload(url, filename) {
   const a = document.createElement('a');
   a.href     = url;
@@ -225,37 +219,39 @@ function triggerDownload(url, filename) {
 }
 
 // ── Conversion ───────────────────────────────────────────────────────────────
-
-/** Simulate smooth progress fill during encoding. */
 function startProgressTick(item) {
   return setInterval(() => {
     if (item.progress < 82) {
-      item.progress += Math.random() * 9 + 3;
+      item.progress += Math.random() * 8 + 2;
       const bar = document.getElementById(`prog-${item.id}`);
       if (bar) bar.style.width = `${Math.min(item.progress, 82)}%`;
     }
-  }, 250);
+  }, 300);
 }
 
-/** Determine the output filename extension for a given format. */
 function outputExtension(fmt) {
-  const map = { aac: 'm4a', opus: 'opus', ogg: 'ogg', flac: 'flac', wav: 'wav', mp3: 'mp3' };
-  return map[fmt] || fmt;
+  return { aac: 'm4a', opus: 'opus', ogg: 'ogg', flac: 'flac', wav: 'wav', mp3: 'mp3', aiff: 'aiff' }[fmt] || fmt;
 }
 
-/** Convert all pending files sequentially. */
 async function convertAll() {
   if (state.converting) return;
 
-  state.converting = true;
+  state.converting    = true;
   convertBtn.disabled = true;
 
-  const fmt    = fmtSelect.value;
+  const fmt     = fmtSelect.value;
   const bitrate = qSelect.value;
-  const pending = state.files.filter(f => f.status !== 'done');
 
-  for (const item of pending) {
-    // Mark as active
+  // Snapshot IDs to convert — avoids processing files removed mid-conversion
+  const pendingIds = state.files
+    .filter(f => f.status !== 'done')
+    .map(f => f.id);
+
+  for (const id of pendingIds) {
+    // Re-look up the item — skip if it was removed from the queue while we were converting
+    const item = state.files.find(f => f.id === id);
+    if (!item) continue;
+
     item.status     = 'active';
     item.statusText = 'Convertendo…';
     item.progress   = 5;
@@ -267,19 +263,27 @@ async function convertAll() {
       const blob = await SoundShiftEncoder.convertAudioFile(item.file, fmt, bitrate);
       clearInterval(tick);
 
-      // Free previous URL if re-converting
+      // Item may have been removed while awaiting — check again
+      if (!state.files.find(f => f.id === id)) {
+        URL.revokeObjectURL(URL.createObjectURL(blob)); // free immediately
+        continue;
+      }
+
       if (item.url) URL.revokeObjectURL(item.url);
 
-      item.blob      = blob;
-      item.url       = URL.createObjectURL(blob);
-      item.outName   = item.file.name.replace(/\.[^.]+$/, '') + '.' + outputExtension(fmt);
-      item.status    = 'done';
+      item.url        = URL.createObjectURL(blob);
+      item.outName    = item.file.name.replace(/\.[^.]+$/, '') + '.' + outputExtension(fmt);
+      item.status     = 'done';
       item.statusText = `Concluído · ${fmtSize(blob.size)}`;
-      item.progress  = 100;
+      item.progress   = 100;
 
     } catch (err) {
       clearInterval(tick);
       console.error('[SoundShift] Conversion error:', err);
+
+      // Item may have been removed — skip update if gone
+      if (!state.files.find(f => f.id === id)) continue;
+
       item.status     = 'error';
       item.statusText = `Erro: ${err.message}`;
       item.progress   = 0;
@@ -289,67 +293,40 @@ async function convertAll() {
     updateStats();
   }
 
-  state.converting = false;
+  state.converting    = false;
   convertBtn.disabled = false;
 
   const doneCount = state.files.filter(f => f.status === 'done').length;
   const errCount  = state.files.filter(f => f.status === 'error').length;
 
-  if (doneCount > 0) {
-    showToast(`${doneCount} arquivo(s) convertido(s) com sucesso!`, 'success');
-  }
-  if (errCount > 0) {
-    showToast(`${errCount} arquivo(s) com erro.`, 'error');
-  }
+  if (doneCount > 0) showToast(`${doneCount} arquivo(s) convertido(s) com sucesso!`, 'success');
+  if (errCount  > 0) showToast(`${errCount} arquivo(s) com erro na conversão.`, 'error');
 }
 
-/** Download all successfully converted files. */
 function downloadAll() {
-  const done = state.files.filter(f => f.status === 'done');
-  if (!done.length) return;
-  done.forEach(item => triggerDownload(item.url, item.outName));
+  state.files
+    .filter(f => f.status === 'done')
+    .forEach(item => triggerDownload(item.url, item.outName));
 }
 
-// ── Event wiring ─────────────────────────────────────────────────────────────
+// ── Events ───────────────────────────────────────────────────────────────────
 dropzone.addEventListener('click', () => fileInput.click());
-
 dropzone.addEventListener('keydown', e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
 });
-
-fileInput.addEventListener('change', e => {
-  addFiles(e.target.files);
-  fileInput.value = ''; // reset so same file can be re-added after removal
-});
-
-dropzone.addEventListener('dragover', e => {
-  e.preventDefault();
-  dropzone.classList.add('drag-over');
-});
-
+fileInput.addEventListener('change', e => { addFiles(e.target.files); fileInput.value = ''; });
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
 dropzone.addEventListener('dragleave', e => {
-  if (!dropzone.contains(e.relatedTarget)) {
-    dropzone.classList.remove('drag-over');
-  }
+  if (!dropzone.contains(e.relatedTarget)) dropzone.classList.remove('drag-over');
 });
-
 dropzone.addEventListener('drop', e => {
   e.preventDefault();
   dropzone.classList.remove('drag-over');
   addFiles(e.dataTransfer.files);
 });
-
 convertBtn.addEventListener('click', convertAll);
 downloadAllBtn.addEventListener('click', downloadAll);
 
-// Redraw waveform on window resize (canvas pixel density)
-window.addEventListener('resize', () => {
-  const lastFile = state.files[state.files.length - 1];
-  if (lastFile) {
-    SoundShiftEncoder.drawWaveform(lastFile.file, waveCanvas).catch(() => {});
-  }
-});
-
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// ── Boot ─────────────────────────────────────────────────────────────────────
 updateStats();
 console.info('%cSoundShift 🎵 loaded', 'color:#22c55e;font-weight:bold;font-size:14px');

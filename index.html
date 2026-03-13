@@ -22,14 +22,6 @@
 </head>
 <body>
 
-<!-- Loading overlay (shown while FFmpeg loads, hidden by default) -->
-<div id="loadingOverlay" aria-live="polite" aria-label="Carregando">
-  <div class="loading-box">
-    <div class="loading-spinner"></div>
-    <div class="loading-text">Iniciando conversor...</div>
-  </div>
-</div>
-
 <main>
 
   <!-- ── Header ── -->
@@ -87,12 +79,6 @@
   <!-- ── File queue ── -->
   <div id="queue" role="list" aria-label="Fila de arquivos"></div>
 
-  <!-- ── Waveform visualizer ── -->
-  <div id="vizSection" aria-hidden="true">
-    <div class="viz-label">Forma de onda do último arquivo</div>
-    <canvas id="waveCanvas"></canvas>
-  </div>
-
   <!-- ── Controls bar ── -->
   <div id="controls">
     <div class="ctrl-group">
@@ -100,6 +86,7 @@
       <select id="fmtSelect">
         <option value="mp3">MP3 — MPEG Audio Layer III</option>
         <option value="wav">WAV — Waveform Audio</option>
+        <option value="aiff">AIFF — Audio Interchange Format</option>
         <option value="ogg">OGG — Ogg Vorbis</option>
         <option value="flac">FLAC — Lossless Audio</option>
         <option value="aac">AAC — Advanced Audio Coding</option>
@@ -150,6 +137,5 @@
 <!-- ── App scripts ── -->
 <script src="js/encoder.js"></script>
 <script src="js/app.js"></script>
-
 </body>
 </html>
