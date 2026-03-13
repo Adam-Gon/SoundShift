@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SoundShift — Conversor de áudio gratuito e open source. Converta MP3, WAV, OGG, FLAC e mais direto no navegador, sem servidores." />
+  <meta name="author" content="Seu Nome" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="SoundShift — Conversor de Áudio" />
+  <meta property="og:description" content="Converta arquivos de áudio direto no navegador, sem upload para servidores." />
+  <meta property="og:type" content="website" />
+
+  <title>SoundShift — Conversor de Áudio</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- Loading overlay (shown while FFmpeg loads, hidden by default) -->
+<div id="loadingOverlay" aria-live="polite" aria-label="Carregando">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Iniciando conversor...</div>
+  </div>
+</div>
+
+<main>
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+        <path d="M9 18V5l12-2v13"/>
+        <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+      </svg>
+    </div>
+    <div class="logo-text">Sound<span>Shift</span></div>
+    <div class="badge">v1.0 · browser-native</div>
+  </header>
+
+  <!-- ── Drop zone ── -->
+  <div id="dropzone" role="button" tabindex="0" aria-label="Clique ou arraste arquivos de áudio para converter">
+    <div class="drop-icon" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <div class="drop-title">Arraste seus arquivos de áudio aqui</div>
+    <div class="drop-sub">ou clique para selecionar — múltiplos arquivos suportados</div>
+    <div class="drop-formats" aria-label="Formatos suportados">
+      <span class="fmt-chip">MP3</span>
+      <span class="fmt-chip">WAV</span>
+      <span class="fmt-chip">OGG</span>
+      <span class="fmt-chip">FLAC</span>
+      <span class="fmt-chip">AAC</span>
+      <span class="fmt-chip">M4A</span>
+      <span class="fmt-chip">OPUS</span>
+      <span class="fmt-chip">WEBM</span>
+    </div>
+  </div>
+  <input type="file" id="fileInput" multiple accept="audio/*" aria-label="Selecionar arquivos de áudio" />
+
+  <!-- ── Stats bar ── -->
+  <div id="statsBar" role="status" aria-live="polite">
+    <div class="stat-item">
+      <div class="stat-val" id="statFiles">0</div>
+      <div class="stat-lbl">Arquivos</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-val" id="statConverted">0</div>
+      <div class="stat-lbl">Convertidos</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-val" id="statSize">0 MB</div>
+      <div class="stat-lbl">Tamanho Total</div>
+    </div>
+  </div>
+
+  <!-- ── File queue ── -->
+  <div id="queue" role="list" aria-label="Fila de arquivos"></div>
+
+  <!-- ── Waveform visualizer ── -->
+  <div id="vizSection" aria-hidden="true">
+    <div class="viz-label">Forma de onda do último arquivo</div>
+    <canvas id="waveCanvas"></canvas>
+  </div>
+
+  <!-- ── Controls bar ── -->
+  <div id="controls">
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="fmtSelect">Formato de saída</label>
+      <select id="fmtSelect">
+        <option value="mp3">MP3 — MPEG Audio Layer III</option>
+        <option value="wav">WAV — Waveform Audio</option>
+        <option value="ogg">OGG — Ogg Vorbis</option>
+        <option value="flac">FLAC — Lossless Audio</option>
+        <option value="aac">AAC — Advanced Audio Coding</option>
+        <option value="opus">OPUS — Opus Audio</option>
+      </select>
+    </div>
+
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="qSelect">Qualidade / Bitrate</label>
+      <select id="qSelect">
+        <option value="320k">320 kbps — Alta qualidade</option>
+        <option value="256k" selected>256 kbps — Muito boa</option>
+        <option value="192k">192 kbps — Boa</option>
+        <option value="128k">128 kbps — Padrão</option>
+        <option value="96k">96 kbps — Econômico</option>
+        <option value="64k">64 kbps — Baixa (podcast)</option>
+      </select>
+    </div>
+
+    <button id="convertBtn" disabled aria-label="Converter arquivos">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+      Converter
+    </button>
+
+    <button id="downloadAllBtn" aria-label="Baixar todos os arquivos convertidos">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Baixar Tudo
+    </button>
+  </div>
+
+</main>
+
+<!-- ── Toast notification ── -->
+<div id="toast" role="alert" aria-live="assertive">
+  <span id="toastIcon" aria-hidden="true">✓</span>
+  <span id="toastMsg">Pronto!</span>
+</div>
+
+<!-- ── External lib: lamejs (MP3 encoding) ── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+
+<!-- ── App scripts ── -->
+<script src="js/encoder.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
