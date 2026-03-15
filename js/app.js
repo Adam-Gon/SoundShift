@@ -146,12 +146,6 @@ function addFiles(files) {
       continue;
     }
 
-    // Validate size
-    if (file.size > MAX_FILE_BYTES) {
-      tooBig.push(`"${file.name}" (${(file.size / 1024 / 1024).toFixed(0)} MB)`);
-      continue;
-    }
-
     // Detect duplicates by name + size
     const exists = state.files.some(f => f.file.name === file.name && f.file.size === file.size);
     if (exists) {
