@@ -159,7 +159,8 @@ function encodeAIFF(audioBuf) {
   return new Blob([buffer], { type: 'audio/aiff' });
 }
 
-
+/**
+ * Encode an AudioBuffer as MP3 using lamejs.
  * @param {AudioBuffer} audioBuf
  * @param {number}      kbps
  * @returns {Blob}
