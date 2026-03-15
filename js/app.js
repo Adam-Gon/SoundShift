@@ -22,6 +22,7 @@ const queue          = $('queue');
 const convertBtn     = $('convertBtn');
 const downloadAllBtn = $('downloadAllBtn');
 const fmtSelect      = $('fmtSelect');
+const fmtNotice      = $('fmtNotice');
 const qSelect        = $('qSelect');
 const statFiles      = $('statFiles');
 const statConverted  = $('statConverted');
@@ -146,6 +147,12 @@ function addFiles(files) {
       continue;
     }
 
+    // Validate size
+    if (file.size > MAX_FILE_BYTES) {
+      tooBig.push(`"${file.name}" (${(file.size / 1024 / 1024).toFixed(0)} MB)`);
+      continue;
+    }
+
     // Detect duplicates by name + size
     const exists = state.files.some(f => f.file.name === file.name && f.file.size === file.size);
     if (exists) {
@@ -240,13 +247,17 @@ async function convertAll() {
     .filter(f => f.status !== 'done')
     .map(f => f.id);
 
+  const SLOW_FORMATS = new Set(['ogg', 'flac', 'aac', 'opus']);
+
   for (const id of pendingIds) {
     // Re-look up the item — skip if it was removed from the queue while we were converting
     const item = state.files.find(f => f.id === id);
     if (!item) continue;
 
     item.status     = 'active';
-    item.statusText = 'Convertendo…';
+    item.statusText = SLOW_FORMATS.has(fmt)
+      ? 'Convertendo em tempo real — pode demorar a duração do áudio'
+      : 'Convertendo…';
     item.progress   = 5;
     renderQueue();
 
@@ -319,6 +330,11 @@ dropzone.addEventListener('drop', e => {
 });
 convertBtn.addEventListener('click', convertAll);
 downloadAllBtn.addEventListener('click', downloadAll);
+
+const SLOW_FORMATS = new Set(['ogg', 'flac', 'aac', 'opus']);
+fmtSelect.addEventListener('change', () => {
+  fmtNotice.hidden = !SLOW_FORMATS.has(fmtSelect.value);
+});
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 updateStats();

@@ -523,6 +523,19 @@ select option {
 #toast.success { border-color: rgba(34, 208, 122, 0.5); }
 #toast.error   { border-color: rgba(255, 59, 92, 0.5); }
 
+/* ── Format notice ── */
+.fmt-notice {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar          { width: 6px; }
 ::-webkit-scrollbar-track    { background: transparent; }
