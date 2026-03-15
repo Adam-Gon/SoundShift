@@ -284,6 +284,11 @@ function encodeViaMediaRecorder(audioBuf, targetFmt) {
  * @returns {Promise<Blob>}
  */
 async function convertAudioFile(file, targetFmt, bitrate) {
+  // Verify lamejs loaded before attempting MP3 conversion
+  if (targetFmt === 'mp3' && !window.lamejs) {
+    throw new Error('Biblioteca MP3 não carregou. Tente outro formato (WAV, OGG) ou recarregue a página.');
+  }
+
   const audioBuf = await decodeAudioFile(file);
   const kbps     = parseInt(bitrate, 10) || 128;
 
