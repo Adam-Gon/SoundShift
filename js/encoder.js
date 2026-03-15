@@ -14,12 +14,20 @@
 // ── File size limit: 300 MB ──────────────────────────────────────────────────
 const MAX_FILE_BYTES = 300 * 1024 * 1024;
 
-// ── Shared AudioContext ──────────────────────────────────────────────────────
-const AudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// ── Shared AudioContext (lazy — created on first user gesture) ───────────────
+let AudioCtx = null;
+
+function getAudioCtx() {
+  if (!AudioCtx) {
+    AudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return AudioCtx;
+}
 
 /** Resume AudioContext if suspended (browsers pause it until a user gesture). */
 async function resumeCtx() {
-  if (AudioCtx.state === 'suspended') await AudioCtx.resume();
+  const ctx = getAudioCtx();
+  if (ctx.state === 'suspended') await ctx.resume();
 }
 
 /**
@@ -33,7 +41,7 @@ async function decodeAudioFile(file) {
   }
   await resumeCtx();
   const arrayBuffer = await file.arrayBuffer();
-  return AudioCtx.decodeAudioData(arrayBuffer);
+  return getAudioCtx().decodeAudioData(arrayBuffer);
 }
 
 /**
@@ -223,8 +231,9 @@ function encodeViaMediaRecorder(audioBuf, targetFmt) {
   }
 
   return new Promise((resolve, reject) => {
-    const streamDest = AudioCtx.createMediaStreamDestination();
-    const source     = AudioCtx.createBufferSource();
+    const ctx        = getAudioCtx();
+    const streamDest = ctx.createMediaStreamDestination();
+    const source     = ctx.createBufferSource();
     source.buffer    = audioBuf;
     source.connect(streamDest);
 

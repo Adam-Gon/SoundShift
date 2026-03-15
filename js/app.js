@@ -132,7 +132,6 @@ function renderQueue() {
 // ── File management ──────────────────────────────────────────────────────────
 const ACCEPTED_EXTENSIONS = /\.(mp3|wav|ogg|flac|aac|m4a|opus|webm|wma|aiff|au)$/i;
 const MAX_FILE_MB          = 300;
-const MAX_FILE_BYTES       = MAX_FILE_MB * 1024 * 1024;
 
 function addFiles(files) {
   let added      = 0;
